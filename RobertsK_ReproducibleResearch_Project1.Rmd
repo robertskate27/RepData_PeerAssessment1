@@ -1,0 +1,162 @@
+---
+title: "RepData_Project1"
+output: html_document
+date: "2026-01-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+```
+
+## Loading and preprocessing the data
+
+Read in the csv:
+
+```{r}
+Data <- read.csv("C:\\Users\\kroberts\\Downloads\\repdata_data_activity\\activity.csv")
+```
+
+## What is the mean total number of steps taken per day?
+
+Add columns for mean and median steps, create histograms, report values:
+
+```{r}
+daily_sum_steps <- data.frame()
+uniquedates <- unique(Data$date)
+
+for (i in uniquedates){
+  dailydata <- Data[which(Data$date == i),]
+  daily_sum_steps <- rbind(daily_sum_steps,data.frame(i,sum(dailydata$steps, na.rm = TRUE)))
+}
+
+colnames(daily_sum_steps) <- c("Date","Sum")
+
+ggplot(daily_sum_steps, aes(x = `Sum`)) +
+ geom_histogram(color = "black", fill = "gold", ) +
+  labs(
+    title = "Histogram of Total Number of Steps",
+    x = "Daily Total Steps",
+    y = "Count of Days"
+  ) +
+  theme_classic(paper = "cornsilk1")
+
+MeanSteps <- mean(daily_sum_steps$Sum, na.rm = TRUE)
+print(paste0("Mean Total Steps per Day = ", MeanSteps))
+MedianSteps <- median(daily_sum_steps$Sum, na.rm = TRUE)
+print(paste0("Median Total Steps per Day = ",MedianSteps))
+
+```
+
+## What is the average daily activity pattern?
+
+```{r}
+# Compute average steps per 5-minute interval (ignore NA values)
+avg_steps <- Data %>%
+  group_by(interval) %>%
+  summarise(mean_steps = mean(steps, na.rm = TRUE))
+
+ggplot(avg_steps, aes(x = interval, y = mean_steps)) +
+  geom_line(colour = "red")+
+  geom_point()+
+  labs(title = "Average Daily Activity Pattern",
+       x = "5-minute Interval",
+       y = "Average Number of Steps") +
+  theme_classic(paper = "cornsilk1")
+
+# Identify the interval with the maximum average steps
+max_interval <- avg_steps$interval[which.max(avg_steps$mean_steps)]
+max_steps <- max(avg_steps$mean_steps)
+
+# Print results
+print(paste0("5-minute interval with maximum average steps:", max_interval))
+  
+```
+
+## Inputing missing values
+
+```{r}
+#Calculate number of NA's
+numna <- length(which(is.na(Data$steps)))
+print(paste0("Total Number of NA values = ",numna))
+
+#Fill in missing values in dataset with mean for 5-minute interval
+filled_Data <- Data
+for (i in 1:nrow(filled_Data)){
+  if (is.na(filled_Data[i,"steps"])){
+    intv <- filled_Data[i,"interval"]
+    filled_Data[i,"steps"] <- avg_steps[which(avg_steps$interval == intv), "mean_steps"]
+  }
+}
+
+#Find total steps per day for filled in data
+daily_sum_steps2 <- data.frame()
+for (i in uniquedates){
+  dailydata2 <- filled_Data[which(filled_Data$date == i),]
+  daily_sum_steps2 <- rbind(daily_sum_steps2,data.frame(i,sum(dailydata2$steps, na.rm = TRUE)))
+}
+colnames(daily_sum_steps2) <- c("Date","Sum")
+
+#histogram of total steps per day for filled in dataset
+ggplot(daily_sum_steps2, aes(x = Sum))+
+  geom_histogram(color = "black", fill = "gold", ) +
+  labs(
+    title = "Histogram of Total Number of Steps (NA's replaced)",
+    x = "Daily Total Steps",
+    y = "Count of Days"
+  ) +
+  theme_classic(paper = "cornsilk1")
+
+MeanSteps2 <- mean(daily_sum_steps2$Sum, na.rm = TRUE)
+print(paste0("Mean Total Steps per Day = ", MeanSteps2))
+MedianSteps2 <- median(daily_sum_steps2$Sum, na.rm = TRUE)
+print(paste0("Median Total Steps per Day = ",MedianSteps2))
+```
+The mean/median of the dataset with filled NA's are higher than the mean/median of the initial dataset. 
+The estimates of total daily steps increased due to inputing missing data.
+
+## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+#determine weekend/weekday
+weekdays_data <- weekdays(as.POSIXct(filled_Data$date, format = "%Y-%m-%d"), abbreviate = FALSE)
+weekday_col <- data.frame()
+for (x in weekdays_data){
+  if(grepl("Sat|Sun",x)){
+    day <- "weekend"
+  } else {
+    day <- "weekday"
+  }
+  weekday_col <- rbind(weekday_col,day)
+}
+colnames(weekday_col) <- "Weekdays"
+filled_Data <- cbind(filled_Data,weekday_col)
+
+# #find avg steps per day
+# avg_steps2 <- filled_Data %>%
+#   group_by(interval) %>%
+#   summarise(mean_steps = mean(steps))
+# 
+# #Create panel plot
+# ggplot(filled_Data, aes(x = "interval", y = "steps")) +
+#   geom_point() +
+#   facet_wrap(~Weekdays)
+
+# Find average steps per interval per day type
+avg_steps2 <- filled_Data %>%
+  group_by(interval, Weekdays) %>%
+  summarise(mean_steps = mean(steps), .groups = "drop")
+
+# Create panel plot (type = "l" equivalent is geom_line())
+ggplot(avg_steps2, aes(x = interval, y = mean_steps)) +
+  geom_line(colour = "red") +
+  geom_point() +
+  facet_wrap(~Weekdays, ncol = 1) +
+  labs(
+    title = "Average Daily Activity Pattern",
+    x = "5-minute Interval",
+    y = "Average Number of Steps"
+  ) +
+  theme_classic(paper = "cornsilk1")
+
+```
